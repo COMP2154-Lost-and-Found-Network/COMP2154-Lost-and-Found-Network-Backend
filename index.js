@@ -3,6 +3,7 @@ import express from "express";
 import cors from "cors";
 import pool from "./db.js";
 import usersRouter from "./routes/users.js";
+import authRouter from "./routes/auth.js";
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -15,6 +16,7 @@ app.get("/", (req, res) => {
     res.json("Hello Team!");
 });
 
+app.use("/api/auth", authRouter);
 app.use("/api/users", usersRouter);
 
 pool.getConnection()
