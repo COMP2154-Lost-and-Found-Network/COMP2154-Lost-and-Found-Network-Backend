@@ -62,7 +62,8 @@ export const login = async (req, res) => {
         { expiresIn: "1h" }
     );
 
-    res.json({ token });
+    const { password_hash: _, ...safeUser } = user;
+    res.json({ token, user: { ...safeUser, is_verified_member: !!safeUser.is_verified_member } });
 };
 
 export const logout = (req, res) => {
