@@ -1,0 +1,68 @@
+import * as itemModel from "../models/itemModel.js";
+
+export const createItem = async (req, res) => {
+    try {
+        const {
+            user_id,
+            category_id,
+            location_id,
+            type,
+            title,
+            description,
+            location_details,
+            date,
+        } = req.body;
+
+
+        // TASK-2021: allow lost and found
+        if (type !== "lost" && type !== "found") {
+            return res.status(400).json({ error: "Type must be either lost or found" });
+        }
+
+        // TASK-2023: image required for found items
+        if (type === "found" && !req.body.image_url) {
+            return res.status(400).json({ error: "Image is required for found items" });
+        }
+
+        // TASK-2018: validation + error handling
+        if (!user_id) {
+            return res.status(400).json({ error: "User is required" });
+        }
+
+        if (!category_id) {
+            return res.status(400).json({ error: "Category is required" });
+        }
+
+        if (!location_id) {
+            return res.status(400).json({ error: "Location is required" });
+        }
+
+        if (!title || title.trim().length < 3) {
+            return res.status(400).json({ error: "Title must be at least 3 characters" });
+        }
+
+        if (!description || description.trim().length < 5) {
+            return res.status(400).json({ error: "Description must be at least 5 characters" });
+        }
+
+        if (!date || isNaN(Date.parse(date))) {
+            return res.status(400).json({ error: "Valid date is required" });
+        }
+
+        const newItem = await itemModel.create({
+            user_id,
+            category_id,
+            location_id,
+            type,
+            title,
+            description,
+            location_details,
+            date,
+            status: "active",
+        });
+
+        return res.status(201).json(newItem);
+    } catch (err) {
+        return res.status(500).json({ error: "Server error" });
+    }
+};

@@ -4,6 +4,7 @@ import cors from "cors";
 import pool from "./db.js";
 import usersRouter from "./routes/users.js";
 import authRouter from "./routes/auth.js";
+import itemsRouter from "./routes/items.js";
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -18,6 +19,7 @@ app.get("/", (req, res) => {
 
 app.use("/api/auth", authRouter);
 app.use("/api/users", usersRouter);
+app.use("/api/items", itemsRouter);
 
 pool.getConnection()
     .then((conn) => {
