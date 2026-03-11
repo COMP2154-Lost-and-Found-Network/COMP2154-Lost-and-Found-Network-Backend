@@ -93,3 +93,12 @@ export const deleteItem = async (req, res) => {
         return res.status(500).json(err);
     }
 }
+
+export const getItems = async (req, res) => {
+    try {
+        res.json(await itemModel.getItems(req.query));
+    }
+    catch (err) {
+        return res.status(500).json(err);
+    }
+}
