@@ -75,3 +75,21 @@ export const deleteItem = async (id) => {
     if (result.affectedRows === 0) throw new Error("Item not found");
     return result;
 }
+
+export const getItems = async (params = {}) => {
+    let filters = []
+    if (params.user_id) filters.push("i.user_id = " + params.user_id);
+    if (params.category) filters.push("c.name LIKE '%" + params.category + "%'");
+    if (params.location) filters.push("l.display_name LIKE '%" + params.location + "%'");
+    if (params.status) filters.push("i.status = " + params.status);
+    if (params.title) filters.push("i.title LIKE '%" + params.title + "%'");
+    if (params.description) filters.push("i.description LIKE '%" + params.description + "%'");
+    filters = filters.join(" AND ")
+    if (filters) filters = " WHERE " + filters
+    const itemsQuery = `SELECT ${SAFE_COLUMNS_ITEMS}
+                        FROM items AS i
+                                 LEFT JOIN categories AS c ON i.category_id = c.id
+                                 LEFT JOIN locations AS l on i.location_id = l.id` + filters
+    const [items] = await pool.query(itemsQuery)
+    return items;
+}
