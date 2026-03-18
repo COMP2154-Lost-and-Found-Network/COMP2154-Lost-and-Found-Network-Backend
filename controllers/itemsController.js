@@ -87,7 +87,7 @@ export const updateItem = async (req, res) => {
 export const deleteItem = async (req, res) => {
     try {
         const result = await itemModel.deleteItem(req.params.id);
-        res.status(200).json({message: "Deleted item"});
+        res.status(200).json({ message: "Deleted item" });
     }
     catch (err) {
         return res.status(500).json(err);
@@ -102,3 +102,23 @@ export const getItems = async (req, res) => {
         return res.status(500).json(err);
     }
 }
+
+export const getItemById = async (req, res) => {
+    try {
+        const { id } = req.params;
+
+        if (!id) {
+            return res.status(400).json({ error: "Item id is required" });
+        }
+
+        const item = await itemModel.findById(id);
+
+        if (!item) {
+            return res.status(404).json({ error: "Item not found" });
+        }
+
+        return res.status(200).json(item);
+    } catch (err) {
+        return res.status(500).json({ error: "Server error" });
+    }
+};
