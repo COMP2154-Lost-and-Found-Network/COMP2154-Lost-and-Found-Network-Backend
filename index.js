@@ -5,6 +5,7 @@ import pool from "./db.js";
 import usersRouter from "./routes/users.js";
 import authRouter from "./routes/auth.js";
 import itemsRouter from "./routes/items.js";
+import claimsRoutes from "./routes/claims.js";
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -20,6 +21,7 @@ app.get("/", (req, res) => {
 app.use("/api/auth", authRouter);
 app.use("/api/users", usersRouter);
 app.use("/api/items", itemsRouter);
+app.use("/api/claims", claimsRoutes);
 
 pool.getConnection()
     .then((conn) => {
