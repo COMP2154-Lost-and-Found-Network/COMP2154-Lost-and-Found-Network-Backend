@@ -60,3 +60,11 @@ export const findApprovedClaimForItem = async (item_id) => {
     );
     return rows[0] || null;
 };
+
+export const findByClaimantId = async (claimant_id) => {
+    const [rows] = await pool.query(
+        "SELECT * FROM claims WHERE claimant_id = ?",
+        [claimant_id]
+    );
+    return rows || null;
+}

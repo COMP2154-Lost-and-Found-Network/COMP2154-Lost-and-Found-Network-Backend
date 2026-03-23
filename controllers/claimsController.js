@@ -66,3 +66,15 @@ export const updateClaimStatus = async (req, res) => {
         return res.status(500).json({ error: "Server error" });
     }
 };
+
+export const getClaim = async (req, res) => {
+    if (parseInt(req.query.claimant_id) !== req.user.id) {
+        return res.status(401).json({ error: "Invalid credentials" });
+    }
+    try {
+        const test = await claimModel.findByClaimantId(req.query.claimant_id);
+        return res.status(200).json(test);
+    } catch (err) {
+        return res.status(500).json({ error: "Server error" });
+    }
+}
