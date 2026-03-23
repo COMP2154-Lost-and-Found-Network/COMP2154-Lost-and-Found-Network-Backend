@@ -1,6 +1,6 @@
 import pool from "../db.js";
 
-const SAFE_COLUMNS_ITEMS = "i.id, i.user_id, i.type, i.title, i.description, i.location_details, i.date, i.status, c.name AS category, l.display_name AS location";
+const SAFE_COLUMNS_ITEMS = "i.id, i.user_id, i.type, i.title, i.description, i.location_details, i.date, i.status, c.name AS category, l.display_name AS location, img.image_url";
 
 const mapItem = (row) => ({
     id: row.id,
@@ -36,14 +36,28 @@ export async function create(item) {
         ]
     );
 
-    const [rows] = await pool.query("SELECT * FROM items WHERE id = ?", [result.insertId]);
+    const itemId = result.insertId;
+
+    if (item.image_url) {
+        await pool.query(
+            `INSERT INTO images (item_id, image_url) VALUES (?, ?)`,
+            [itemId, item.image_url]
+        );
+    }
+
+    const [rows] = await pool.query("SELECT * FROM items WHERE id = ?", [itemId]);
     return rows.length ? mapItem(rows[0]) : null;
 }
 
 export const getItem = async (id) => {
-    const query = `SELECT * FROM items WHERE id = ?`;
-    const [item] = await pool.query(query, [id]);
-    return item[0];
+    const query = `SELECT i.*, c.name AS category, l.display_name AS location, img.image_url
+                   FROM items AS i
+                   LEFT JOIN categories AS c ON i.category_id = c.id
+                   LEFT JOIN locations AS l ON i.location_id = l.id
+                   LEFT JOIN images AS img ON img.item_id = i.id
+                   WHERE i.id = ?`;
+    const [rows] = await pool.query(query, [id]);
+    return rows[0];
 }
 
 export const updateItem = async (id, item) => {
@@ -51,19 +65,27 @@ export const updateItem = async (id, item) => {
     const update = {
         title: item.title ?? existing.title,
         description: item.description ?? existing.description,
+        location_id: item.location_id ?? existing.location_id,
         location_details: item.location ?? existing.location_details,
         date: item.date ?? existing.date,
-        status: item.status ?? existing.status
+        status: item.status ?? existing.status,
     }
     if (isNaN(Date.parse(update.date))) throw new TypeError("Invalid Date");
     const query = `UPDATE items
                    SET title            = ?,
                        description      = ?,
+                       location_id      = ?,
                        location_details = ?,
                        date             = ?,
                        status           = ?
                    WHERE id = ?`;
-    await pool.query(query, [update.title, update.description, update.location_details, update.date, update.status, id]);
+    await pool.query(query, [update.title, update.description, update.location_id, update.location_details, update.date, update.status, id]);
+
+    if (item.image_url) {
+        await pool.query(`DELETE FROM images WHERE item_id = ?`, [id]);
+        await pool.query(`INSERT INTO images (item_id, image_url) VALUES (?, ?)`, [id, item.image_url]);
+    }
+
     return getItem(id);
 }
 
@@ -89,7 +111,8 @@ export const getItems = async (params = {}) => {
     const itemsQuery = `SELECT ${SAFE_COLUMNS_ITEMS}
                         FROM items AS i
                                  LEFT JOIN categories AS c ON i.category_id = c.id
-                                 LEFT JOIN locations AS l on i.location_id = l.id` + filters
+                                 LEFT JOIN locations AS l ON i.location_id = l.id
+                                 LEFT JOIN images AS img ON img.item_id = i.id` + filters
     const [items] = await pool.query(itemsQuery)
     return items;
 }

@@ -58,6 +58,7 @@ export const createItem = async (req, res) => {
             description,
             location_details,
             date,
+            image_url: req.body.image_url ?? null,
             status: "active",
         });
 
@@ -86,7 +87,7 @@ export const updateItem = async (req, res) => {
 
 export const deleteItem = async (req, res) => {
     try {
-        const result = await itemModel.deleteItem(req.params.id);
+        await itemModel.deleteItem(req.params.id);
         res.status(200).json({message: "Deleted item"});
     }
     catch (err) {
