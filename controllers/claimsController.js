@@ -1,4 +1,6 @@
 import * as claimModel from "../models/claimModel.js";
+import { updateItem } from "../models/itemModel.js";
+import { notifyUsersOfApproval } from "./emailController.js"
 
 export const createClaim = async (req, res) => {
     try {
@@ -58,7 +60,12 @@ export const updateClaimStatus = async (req, res) => {
             }
         }
 
-        const updatedClaim = await claimModel.updateStatus(id, status);
+        const updatedClaim = await claimModel.updateStatus(id, status)
+
+        if (status === "approved") {
+            await updateItem(claim.item_id, {status: "claimed"})
+            await notifyUsersOfApproval(req.user.id, claim.claimant_id, claim.item_id);
+        }
 
         return res.status(200).json(updatedClaim);
 
