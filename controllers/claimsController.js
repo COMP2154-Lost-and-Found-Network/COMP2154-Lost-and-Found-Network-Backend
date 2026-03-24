@@ -1,6 +1,5 @@
 import * as claimModel from "../models/claimModel.js";
 import { updateItem } from "../models/itemModel.js";
-import { notifyUsersOfApproval } from "./emailController.js"
 
 export const createClaim = async (req, res) => {
     try {
@@ -60,11 +59,11 @@ export const updateClaimStatus = async (req, res) => {
             }
         }
 
-        const updatedClaim = await claimModel.updateStatus(id, status)
+        const updatedClaim = await claimModel.updateStatus(id, status, claim.item_id);
 
         if (status === "approved") {
             await updateItem(claim.item_id, {status: "claimed"})
-            await notifyUsersOfApproval(req.user.id, claim.claimant_id, claim.item_id);
+            await claimModel.notifyApproval(req.user.id, updatedClaim);
         }
 
         return res.status(200).json(updatedClaim);
@@ -75,12 +74,25 @@ export const updateClaimStatus = async (req, res) => {
 };
 
 export const getClaim = async (req, res) => {
-    if (parseInt(req.query.claimant_id) !== req.user.id) {
+    if (parseInt(req.query.claimant_id) !== req.user.id && req.user.role !== "admin") {
         return res.status(401).json({ error: "Invalid credentials" });
     }
     try {
-        const test = await claimModel.findByClaimantId(req.query.claimant_id);
-        return res.status(200).json(test);
+        const claim = await claimModel.findByClaimantId(req.query.claimant_id);
+        return res.status(200).json(claim);
+    } catch (err) {
+        return res.status(500).json({ error: "Server error" });
+    }
+}
+
+export const withdrawClaim = async (req, res) => {
+    try {
+        const claim = await claimModel.findById(req.params.id);
+        if (claim.claimant_id !== req.user.id && req.user.role !== "admin") {
+            return res.status(401).json({ error: "Invalid credentials" });
+        }
+        await claimModel.withdrawClaim(claim);
+        return res.status(200).json("Claim withdrawn successfully");
     } catch (err) {
         return res.status(500).json({ error: "Server error" });
     }
