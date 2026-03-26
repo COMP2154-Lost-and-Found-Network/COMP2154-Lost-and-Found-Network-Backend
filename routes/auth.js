@@ -8,7 +8,7 @@ const router = Router();
 /* PUBLIC */
 router.post("/login", login);
 router.post("/logout", authenticateToken, logout);
-router.post("/", createUser); // (register) keep public ONLY if your project wants it
+router.post("/", createUser); 
 
 
 
