@@ -29,20 +29,21 @@ app.use("/api/items", itemsRouter);
 app.use("/api/claims", claimsRoutes);
 app.use("/api/upload", uploadRouter);
 
-pool.getConnection()
-    .then((conn) => {
-        console.log("Database connected successfully");
-        conn.release();
-    })
-    .catch((err) => {
-        console.error("Database connection failed:", err.message);
-        process.exit(1);
-    });
-
-if (process.env.NODE_ENV !== "test") {
-    app.listen(PORT, () => {
-        console.log(`Server started on port ${PORT}`);
-    });
-}
-
 export default app;
+
+// only start server outside test environment
+if (process.env.NODE_ENV !== "test") {
+    pool.getConnection()
+        .then((conn) => {
+            console.log("Database connected successfully");
+            conn.release();
+
+            app.listen(PORT, () => {
+                console.log(`Server started on port ${PORT}`);
+            });
+        })
+        .catch((err) => {
+            console.error("Database connection failed:", err.message);
+            process.exit(1);
+        });
+}
