@@ -165,3 +165,15 @@ export const notifyWithdrawal = async (claim) => {
     `;
     await sendEmail(finder.email, "Claim Withdrawn on Your Item", finder_message);
 }
+
+
+export const getClaimStats = async () => {
+    const [rows] = await pool.query(
+        `SELECT COUNT(*) AS Total_Claims,
+                SUM(status = 'pending') AS Pending_Claims,
+                SUM(status = 'approved') AS Approved_Claims,
+                SUM(status = 'rejected') AS Rejected_Claims,
+                SUM(status = 'escalated') AS Escalated_Claims FROM claims`
+    );
+    return rows[0] || null;
+}

@@ -164,3 +164,15 @@ export const findById = async (id) => {
     );
     return rows[0] || null;
 };
+
+export const getItemStats = async () => {
+    const [rows] = await pool.query(
+        `SELECT COUNT(*) AS Total_Items,
+                SUM(status = 'active') AS Active_Items,
+                SUM(status = 'claimed') AS Claimed_Items,
+                SUM(status = 'expired') AS Expired_Items,
+                SUM(status = 'archived') AS Archived_Items FROM items
+                WHERE is_deleted = false`
+    );
+    return rows[0] || null;
+}
