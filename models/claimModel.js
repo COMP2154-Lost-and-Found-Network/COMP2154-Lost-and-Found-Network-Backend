@@ -59,9 +59,12 @@ export const findById = async (id) => {
 export const findDetailById = async (id) => {
     const [rows] = await pool.query(
         `SELECT c.*,
-                CASE WHEN c.status = 'approved' THEN u.email ELSE NULL END AS claimant_email
+                CASE WHEN c.status = 'approved' THEN u.email ELSE NULL END AS claimant_email,
+                CASE WHEN c.status = 'approved' THEN r.email ELSE NULL END AS reporter_email
          FROM claims AS c
          JOIN users AS u ON c.claimant_id = u.id
+         JOIN items AS i ON c.item_id = i.id
+         JOIN users AS r ON i.user_id = r.id
          WHERE c.id = ?`,
         [id]
     );

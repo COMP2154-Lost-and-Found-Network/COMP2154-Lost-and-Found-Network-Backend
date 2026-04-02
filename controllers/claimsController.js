@@ -6,9 +6,13 @@ import pool from "../db.js";
 
 const sendResolutionNotification = async (claimId, status) => {
     const [rows] = await pool.query(
-        `SELECT c.*, u.email
+        `SELECT c.*, u.email AS claimant_email, u.first_name AS claimant_first_name,
+                i.title AS item_title, i.type AS item_type, i.user_id AS reporter_id,
+                r.email AS reporter_email, r.first_name AS reporter_first_name
          FROM claims c
          JOIN users u ON c.claimant_id = u.id
+         JOIN items i ON c.item_id = i.id
+         JOIN users r ON i.user_id = r.id
          WHERE c.id = ?`,
         [claimId]
     );
@@ -19,24 +23,51 @@ const sendResolutionNotification = async (claimId, status) => {
 
     if (status !== "approved" && status !== "rejected") return;
 
-    const subject =
+    // item_type determines roles:
+    // "found" item → reporter is the finder, claimant is the owner
+    // "lost" item  → reporter is the owner, claimant is the finder
+    const isFoundItem = claim.item_type === "found";
+    const reporterRole = isFoundItem ? "finder" : "owner";
+    const claimantRole = isFoundItem ? "owner" : "finder";
+
+    // notify claimant
+    const claimantSubject =
         status === "approved"
             ? "Your claim has been approved"
             : "Your claim has been rejected";
 
-    const body = `
-        <h3>Claim Status Update</h3>
-        <p>Your claim for item ID <b>${claim.item_id}</b> has been <b>${status}</b>.</p>
-    `;
+    const claimantBody = status === "approved"
+        ? `<p>Hello ${claim.claimant_first_name}</p>
+           <p>Your claim for <b>${claim.item_title}</b> has been <b>approved</b>.</p>
+           <p>You can contact the ${reporterRole} at ${claim.reporter_email}</p>`
+        : `<p>Hello ${claim.claimant_first_name}</p>
+           <p>Your claim for <b>${claim.item_title}</b> has been <b>rejected</b>.</p>`;
 
-    await sendEmail(claim.email, subject, body);
+    await sendEmail(claim.claimant_email, claimantSubject, claimantBody);
 
     await createEmailLog({
         user_id: claim.claimant_id,
         email_type: status === "approved" ? "claim_approved" : "claim_rejected",
         reference_id: claim.id,
-        sent_to: claim.email
+        sent_to: claim.claimant_email
     });
+
+    // notify item reporter on approval
+    if (status === "approved") {
+        const reporterBody = `
+            <p>Hello ${claim.reporter_first_name}</p>
+            <p>A claim on your item, <b>${claim.item_title}</b>, has been approved.</p>
+            <p>You can contact the ${claimantRole} at ${claim.claimant_email}</p>`;
+
+        await sendEmail(claim.reporter_email, "Claim Approved on Your Item", reporterBody);
+
+        await createEmailLog({
+            user_id: claim.reporter_id,
+            email_type: "claim_approved",
+            reference_id: claim.id,
+            sent_to: claim.reporter_email
+        });
+    }
 };
 
 export const createClaim = async (req, res) => {

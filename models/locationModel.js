@@ -1,13 +1,13 @@
 import pool from "../db.js";
 
 export const getAll = async () => {
-    const [rows] = await pool.query("SELECT * FROM locations");
+    const [rows] = await pool.query("SELECT * FROM locations WHERE is_active = true ORDER BY display_name");
     return rows;
 };
 
 export const getById = async (id) => {
     const [rows] = await pool.query(
-        "SELECT * FROM locations WHERE id = ?",
+        "SELECT * FROM locations WHERE id = ? AND is_active = true",
         [id]
     );
     return rows[0] || null;
@@ -66,7 +66,7 @@ export const update = async (id, location) => {
 
 export const remove = async (id) => {
     const [result] = await pool.query(
-        "DELETE FROM locations WHERE id = ?",
+        "UPDATE locations SET is_active = false WHERE id = ? AND is_active = true",
         [id]
     );
     return result.affectedRows > 0;

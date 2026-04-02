@@ -8,6 +8,8 @@ import itemsRouter from "./routes/items.js";
 import claimsRoutes from "./routes/claims.js";
 import uploadRouter from "./routes/upload.js";
 import adminRouter from "./routes/admin.js";
+import locationsRouter from "./routes/locations.js";
+import categoriesRouter from "./routes/categories.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -26,6 +28,5 @@ app.use("/api/users", usersRouter);
 app.use("/api/items", itemsRouter);
 app.use("/api/claims", claimsRoutes);
 app.use("/api/upload", uploadRouter);
-app.use("/api/admin", adminRouter);
 
 export default app;
