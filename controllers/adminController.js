@@ -1,4 +1,5 @@
 import * as itemModel from "../models/itemModel.js";
+import * as claimModel from "../models/claimModel.js";
 
 export const updateItem = async (req, res) => {
     try {
@@ -26,6 +27,21 @@ export const deleteItem = async (req, res) => {
 export const getItems = async (req, res) => {
     try {
         res.json(await itemModel.getItems(req.query));
+    }
+    catch (err) {
+        return res.status(500).json(err);
+    }
+}
+
+export const getStats = async (req, res) => {
+    try {
+        const itemStats = await itemModel.getItemStats()
+        const claimStats = await claimModel.getClaimStats()
+        const stats = {
+            itemStats: itemStats,
+            claimStats: claimStats
+        }
+        res.json(stats);
     }
     catch (err) {
         return res.status(500).json(err);
