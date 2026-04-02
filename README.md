@@ -93,48 +93,77 @@ Database connected successfully
 
 ## Interaction with React
 
-Use packages such as Axios to interact with back-end API endpoints within React code. E.G.
-```
-const [items, setItems] = useState([]);
+Use packages such as Axios to interact with back-end API endpoints within React code. All protected endpoints require an `Authorization: Bearer <token>` header.
+
+```js
+const [items, setItems] = useState({ data: [], total: 0, page: 1, totalPages: 1 });
+
 useEffect(() => {
-    const fetchAllItems = async () => {
+    const fetchItems = async () => {
         try {
-            const res = await axios.get("http://localhost:3000/items");
+            const res = await axios.get("http://localhost:3000/api/items?page=1&limit=10", {
+                headers: { Authorization: `Bearer ${token}` }
+            });
             setItems(res.data);
-        } catch(e) {
+        } catch (e) {
             console.log(e);
         }
-    }
-    fetchAllItems();
-})
+    };
+    fetchItems();
+}, []);
 ```
-Back-end server needs to be run seperately from front-end server
 
-## API Endpoints Already Setup
+Back-end server needs to be run separately from front-end server.
+
+---
+
+## API Endpoints
 
 ### Auth
 
-| Method | Endpoint        | Description       |
-|--------|-----------------|-------------------|
-| `POST` | `/api/auth/login`    | Login users     |
-| `POST` | `/api/auth/logout`    | Logout users     |
-
+| Method | Endpoint             | Auth     | Description          |
+|--------|----------------------|----------|----------------------|
+| `POST` | `/api/auth/login`    | Public   | Login user           |
+| `POST` | `/api/auth/logout`   | Token    | Logout user          |
+| `POST` | `/api/auth/`         | Public   | Register new user    |
 
 ### Users
 
-| Method | Endpoint        | Description       |
-|--------|-----------------|-------------------|
-| `GET` | `/api/users`    | Get all users     |
-| `GET` | `/api/users/:id` | Get user by ID    |
-| `POST` | `/api/users`    | Create a new user |
-| `PUT` | `/api/users/:id` | Update a user     |
+| Method | Endpoint         | Auth     | Description        |
+|--------|------------------|----------|--------------------|
+| `GET`  | `/api/users`     | Token    | Get all users      |
+| `GET`  | `/api/users/:id` | Token    | Get user by ID     |
+| `PUT`  | `/api/users/:id` | Token    | Update a user      |
 
+### Items
 
-### Admin
-| `GET` | `/api/admin/:id` | View admin page   |
+| Method   | Endpoint          | Auth     | Description                                          |
+|----------|-------------------|----------|------------------------------------------------------|
+| `POST`   | `/api/items`      | Token    | Create lost/found item                               |
+| `GET`    | `/api/items`      | Token    | List items (paginated, filterable by category, location, status, title) |
+| `GET`    | `/api/items/:id`  | Token    | Get item by ID                                       |
+| `PUT`    | `/api/items/:id`  | Token    | Update item (owner only)                             |
+| `DELETE` | `/api/items/:id`  | Token    | Soft delete item (owner only)                        |
 
+**Pagination:** `GET /api/items` returns `{ data, total, page, limit, totalPages }`. Query params: `page` (default 1), `limit` (default 10, max 100).
 
+### Claims
 
+| Method   | Endpoint                  | Auth     | Description                              |
+|----------|---------------------------|----------|------------------------------------------|
+| `POST`   | `/api/claims`             | Token    | Submit a claim                           |
+| `GET`    | `/api/claims?claimant_id=X` | Token  | Get claims by claimant                   |
+| `GET`    | `/api/claims/inbox`       | Token    | Get claims on the logged-in user's items |
+| `GET`    | `/api/claims/:id`         | Token    | Get claim details (claimant/admin only)  |
+| `PUT`    | `/api/claims/:id`         | Token    | Approve or reject a claim                |
+| `PUT`    | `/api/claims/:id/assign`  | Admin    | Assign claim to a user                   |
+| `DELETE` | `/api/claims/:id/withdraw`| Token    | Withdraw a pending claim (claimant only) |
+
+### Upload
+
+| Method | Endpoint       | Auth     | Description                              |
+|--------|----------------|----------|------------------------------------------|
+| `POST` | `/api/upload`  | Token    | Upload image (JPEG/PNG/GIF/WebP, max 5MB)|
 
 
 > Accounts registered with a `@georgebrown.ca` email are automatically marked as verified members.
@@ -150,13 +179,31 @@ password: 1234
 ## Project Structure
 
 ```
-├── index.js          # Entry point, server setup
-├── db.js             # MySQL connection pool
-├── routes/           # Route definitions
-├── controllers/      # Request handling & business logic
-├── models/           # Database queries
+├── app.js              # Express app configuration & route mounting
+├── index.js            # Entry point, server startup
+├── db.js               # MySQL connection pool
+├── middleware/
+│   ├── auth.js         # JWT token verification
+│   ├── adminAuth.js    # Admin role verification
+│   └── tokenBlacklist.js  # Token revocation (logout)
+├── routes/
+│   ├── auth.js         # Auth routes (login, logout, register)
+│   ├── users.js        # User routes
+│   ├── items.js        # Item CRUD routes
+│   ├── claims.js       # Claim workflow routes
+│   └── upload.js       # Image upload route
+├── controllers/
+│   ├── userController.js
+│   ├── itemsController.js
+│   ├── claimsController.js
+│   └── emailController.js
+├── models/
+│   ├── userModel.js
+│   ├── itemModel.js
+│   ├── claimModel.js
+│   └── emailLogModel.js
 ├── lost_and_found.sql  # Full database schema + seed data
-└── .env.example      # Environment variable template
+└── .env.example        # Environment variable template
 ```
 
 ---
@@ -201,16 +248,16 @@ Tests run serially. Each suite seeds its own data and cleans up after itself.
 
 ```
 tests/
-  auth.test.js          # TC-AUTH-001 to TC-AUTH-008  — Authentication
-  items.test.js         # TC-ITEM-001 to TC-ITEM-013  — Item Management
+  auth.test.js          # TC-AUTH-001 to TC-AUTH-008   — Authentication
+  items.test.js         # TC-ITEM-001 to TC-ITEM-014   — Item Management & Pagination
   claims.test.js        # TC-CLAIM-001 to TC-CLAIM-010 — Claims & Verification
-  upload.test.js        # TC-IMG-001  to TC-IMG-004   — Image Upload
-  users.test.js         # TC-USER-001 to TC-USER-003  — User Profile
+  upload.test.js        # TC-IMG-001  to TC-IMG-004    — Image Upload
+  users.test.js         # TC-USER-001 to TC-USER-003   — User Profile
   helpers/
     db.js               # cleanDb() — removes test data between suites
 ```
 
 ### Notes
 
-- **Email errors during claims tests** — expected. The test environment has no Gmail OAuth2 credentials. Email failures are logged but do not affect test results. (--silent can be added to remove noise)
-- **Admin tests** — not included. Admin routes (`/api/admin/*`) are not yet implemented.
+- **Email errors during claims tests** — expected. The test environment has no Gmail OAuth2 credentials. Email failures are logged but do not affect test results. (`--silent` can be added to reduce noise)
+- **Admin stats tests** — not yet included. Admin stats endpoints are not yet implemented.
