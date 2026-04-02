@@ -111,12 +111,16 @@ describe("Item Management", () => {
     });
 
     // TC-ITEM-007
-    test("TC-ITEM-007: get all items returns 200 and an array", async () => {
+    test("TC-ITEM-007: get all items returns 200 with paginated response", async () => {
         const res = await request(app)
             .get("/api/items")
             .set("Authorization", `Bearer ${token}`);
         expect(res.status).toBe(200);
-        expect(Array.isArray(res.body)).toBe(true);
+        expect(Array.isArray(res.body.data)).toBe(true);
+        expect(res.body).toHaveProperty("total");
+        expect(res.body).toHaveProperty("page");
+        expect(res.body).toHaveProperty("limit");
+        expect(res.body).toHaveProperty("totalPages");
     });
 
     // TC-ITEM-011
@@ -125,7 +129,20 @@ describe("Item Management", () => {
             .get(`/api/items?category=Electronics`)
             .set("Authorization", `Bearer ${token}`);
         expect(res.status).toBe(200);
-        expect(Array.isArray(res.body)).toBe(true);
+        expect(Array.isArray(res.body.data)).toBe(true);
+    });
+
+    // TC-ITEM-014
+    test("TC-ITEM-014: pagination returns correct page and limit", async () => {
+        const res = await request(app)
+            .get("/api/items?page=1&limit=2")
+            .set("Authorization", `Bearer ${token}`);
+        expect(res.status).toBe(200);
+        expect(res.body.page).toBe(1);
+        expect(res.body.limit).toBe(2);
+        expect(res.body.data.length).toBeLessThanOrEqual(2);
+        expect(typeof res.body.total).toBe("number");
+        expect(typeof res.body.totalPages).toBe("number");
     });
 
     // TC-ITEM-010

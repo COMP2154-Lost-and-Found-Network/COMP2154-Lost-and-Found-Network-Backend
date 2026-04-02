@@ -4,7 +4,8 @@
   "main": "index.js",
   "scripts": {
     "test": "node --env-file=.env.test --experimental-vm-modules node_modules/.bin/jest --runInBand --forceExit",
-    "start": "nodemon index.js",
+    "start": "node index.js",
+    "dev": "nodemon index.js",
     "db:test:setup": "mysql -u root -p1234 -e 'CREATE DATABASE IF NOT EXISTS lost_found_test;' && sed 's/lost_found_db/lost_found_test/g' lost_and_found.sql | mysql -u root -p1234"
 
   },
