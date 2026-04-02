@@ -166,3 +166,51 @@ password: 1234
 - Never commit `.env` — it is gitignored
 - If the schema changes, re-run `lost_and_found.sql` to reset your local database
 - Passwords are hashed with bcrypt before storage — never stored in plain text
+
+---
+
+## Testing
+
+### 1. Add MySQL to your PATH (macOS, one-time)
+
+If you get `mysql: command not found`, run:
+
+```bash
+echo 'export PATH="/usr/local/mysql/bin:$PATH"' >> ~/.zshrc && source ~/.zshrc
+```
+
+### 2. Create and seed the test database (one-time)
+
+```bash
+npm run db:test:setup
+```
+
+This creates a separate `lost_found_test` database and applies the full schema including seed data. Re-run this whenever the schema changes.
+
+> Tests never touch `lost_found_db`. The test database is fully isolated.
+
+### 3. Run the tests
+
+```bash
+npm test
+```
+
+Tests run serially. Each suite seeds its own data and cleans up after itself.
+
+### Test Structure
+
+```
+tests/
+  auth.test.js          # TC-AUTH-001 to TC-AUTH-008  — Authentication
+  items.test.js         # TC-ITEM-001 to TC-ITEM-013  — Item Management
+  claims.test.js        # TC-CLAIM-001 to TC-CLAIM-010 — Claims & Verification
+  upload.test.js        # TC-IMG-001  to TC-IMG-004   — Image Upload
+  users.test.js         # TC-USER-001 to TC-USER-003  — User Profile
+  helpers/
+    db.js               # cleanDb() — removes test data between suites
+```
+
+### Notes
+
+- **Email errors during claims tests** — expected. The test environment has no Gmail OAuth2 credentials. Email failures are logged but do not affect test results. (--silent can be added to remove noise)
+- **Admin tests** — not included. Admin routes (`/api/admin/*`) are not yet implemented.

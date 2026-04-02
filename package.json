@@ -3,8 +3,11 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "test:unit": "cross-env NODE_ENV=test node --experimental-vm-modules node_modules/jest/bin/jest.js --runInBand --forceExit"
+    "test": "node --env-file=.env.test --experimental-vm-modules node_modules/.bin/jest --runInBand --forceExit",
+    "start": "node index.js",
+    "dev": "nodemon index.js",
+    "db:test:setup": "mysql -u root -p1234 -e 'CREATE DATABASE IF NOT EXISTS lost_found_test;' && sed 's/lost_found_db/lost_found_test/g' lost_and_found.sql | mysql -u root -p1234"
+
   },
   "type": "module",
   "keywords": [],
@@ -24,8 +27,7 @@
   },
   "devDependencies": {
     "cross-env": "^10.1.0",
-    "jest": "^30.3.0",
-    "nodemon": "^3.1.14",
-    "supertest": "^7.2.2"
+    "jest": "^29.7.0",
+    "supertest": "^7.1.0"
   }
 }

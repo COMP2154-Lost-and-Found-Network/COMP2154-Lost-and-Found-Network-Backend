@@ -56,6 +56,18 @@ export const findById = async (id) => {
     return rows[0] || null;
 };
 
+export const findDetailById = async (id) => {
+    const [rows] = await pool.query(
+        `SELECT c.*,
+                CASE WHEN c.status = 'approved' THEN u.email ELSE NULL END AS claimant_email
+         FROM claims AS c
+         JOIN users AS u ON c.claimant_id = u.id
+         WHERE c.id = ?`,
+        [id]
+    );
+    return rows[0] || null;
+};
+
 export const findApprovedClaimForItem = async (item_id) => {
     const [rows] = await pool.query(
         "SELECT * FROM claims WHERE item_id = ? AND status = 'approved'",
@@ -70,6 +82,19 @@ export const findByClaimantId = async (claimant_id) => {
         [claimant_id]
     );
     return rows || null;
+}
+
+export const findByItemOwnerId = async (owner_id) => {
+    const [rows] = await pool.query(
+        `SELECT c.*, i.title AS item_title, i.type AS item_type, u.first_name AS claimant_first_name, u.last_name AS claimant_last_name
+         FROM claims AS c
+         JOIN items AS i ON c.item_id = i.id
+         JOIN users AS u ON c.claimant_id = u.id
+         WHERE i.user_id = ? AND i.is_deleted = false
+         ORDER BY c.created_at DESC`,
+        [owner_id]
+    );
+    return rows;
 }
 
 export const withdrawClaim = async (claim) => {
@@ -105,12 +130,19 @@ export const notifyApproval = async (user_id, claim) => {
 
 export const notifyWithdrawal = async (claim) => {
     const claimant = await findUser(claim.claimant_id);
-    const item = await findItem(claim.item_id)
-    const message = `
+    const item = await findItem(claim.item_id);
+    const finder = await findUser(item.user_id);
+    const claimant_message = `
         <p>Hello ${claimant.first_name}</p>
         <p>We are reaching out to you regarding your lost item, ${item.title}.</p>
         <p>It has been flagged in our system as having the claim withdrawn.</p>
         <p>If you did not withdraw the claim please contact our admin team.</p>
     `;
-    await sendEmail(claimant.email,"Lost Item Claim Withdrawn", message);
+    await sendEmail(claimant.email, "Lost Item Claim Withdrawn", claimant_message);
+    const finder_message = `
+        <p>Hello ${finder.first_name}</p>
+        <p>A claim on your item, ${item.title}, has been withdrawn by the claimant.</p>
+        <p>The item is still listed and open for other claims.</p>
+    `;
+    await sendEmail(finder.email, "Claim Withdrawn on Your Item", finder_message);
 }

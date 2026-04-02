@@ -56,7 +56,7 @@ export const getItem = async (id) => {
                    LEFT JOIN categories AS c ON i.category_id = c.id
                    LEFT JOIN locations AS l ON i.location_id = l.id
                    LEFT JOIN images AS img ON img.item_id = i.id
-                   WHERE i.id = ?`;
+                   WHERE i.id = ? AND i.is_deleted = false`;
     const [rows] = await pool.query(query, [id]);
     return rows[0];
 }
@@ -91,31 +91,70 @@ export const updateItem = async (id, item) => {
 }
 
 export const deleteItem = async (id) => {
-    const query = `DELETE
-                   FROM items
-                   WHERE id = ?`;
-    const result = await pool.query(query, [id]);
+    const [result] = await pool.query(
+        `UPDATE items SET is_deleted = true WHERE id = ? AND is_deleted = false`,
+        [id]
+    );
     if (result.affectedRows === 0) throw new Error("Item not found");
     return result;
 }
 
 export const getItems = async (params = {}) => {
-    let filters = []
-    if (params.user_id) filters.push("i.user_id = " + params.user_id);
-    if (params.category) filters.push("c.name LIKE '%" + params.category + "%'");
-    if (params.location) filters.push("l.display_name LIKE '%" + params.location + "%'");
-    if (params.status) filters.push("i.status = " + params.status);
-    if (params.title) filters.push("i.title LIKE '%" + params.title + "%'");
-    if (params.description) filters.push("i.description LIKE '%" + params.description + "%'");
-    filters = filters.join(" AND ")
-    if (filters) filters = " WHERE " + filters
-    const itemsQuery = `SELECT ${SAFE_COLUMNS_ITEMS}
-                        FROM items AS i
-                                 LEFT JOIN categories AS c ON i.category_id = c.id
-                                 LEFT JOIN locations AS l ON i.location_id = l.id
-                                 LEFT JOIN images AS img ON img.item_id = i.id` + filters
-    const [items] = await pool.query(itemsQuery)
-    return items;
+    const conditions = [];
+    const values = [];
+
+    if (params.user_id) {
+        conditions.push("i.user_id = ?");
+        values.push(params.user_id);
+    }
+    if (params.category) {
+        conditions.push("c.name LIKE ?");
+        values.push(`%${params.category}%`);
+    }
+    if (params.location) {
+        conditions.push("l.display_name LIKE ?");
+        values.push(`%${params.location}%`);
+    }
+    if (params.status) {
+        conditions.push("i.status = ?");
+        values.push(params.status);
+    }
+    if (params.title) {
+        conditions.push("i.title LIKE ?");
+        values.push(`%${params.title}%`);
+    }
+    if (params.description) {
+        conditions.push("i.description LIKE ?");
+        values.push(`%${params.description}%`);
+    }
+
+    conditions.push("i.is_deleted = false");
+    const whereClause = " WHERE " + conditions.join(" AND ");
+
+    const baseQuery = `FROM items AS i
+                       LEFT JOIN categories AS c ON i.category_id = c.id
+                       LEFT JOIN locations AS l ON i.location_id = l.id
+                       LEFT JOIN images AS img ON img.item_id = i.id` + whereClause;
+
+    const [countResult] = await pool.query(`SELECT COUNT(*) AS total ${baseQuery}`, values);
+    const total = countResult[0].total;
+
+    const page = Math.max(parseInt(params.page) || 1, 1);
+    const limit = Math.min(Math.max(parseInt(params.limit) || 10, 1), 100);
+    const offset = (page - 1) * limit;
+
+    const [items] = await pool.query(
+        `SELECT ${SAFE_COLUMNS_ITEMS} ${baseQuery} ORDER BY i.created_at DESC LIMIT ? OFFSET ?`,
+        [...values, limit, offset]
+    );
+
+    return {
+        data: items,
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+    };
 }
 
 export const findById = async (id) => {

@@ -85,6 +85,30 @@ export const getClaim = async (req, res) => {
     }
 }
 
+export const getClaimsInbox = async (req, res) => {
+    try {
+        const claims = await claimModel.findByItemOwnerId(req.user.id);
+        return res.status(200).json(claims);
+    } catch (err) {
+        return res.status(500).json({ error: "Server error" });
+    }
+}
+
+export const getClaimById = async (req, res) => {
+    try {
+        const claim = await claimModel.findDetailById(req.params.id);
+        if (!claim) {
+            return res.status(404).json({ error: "Claim not found" });
+        }
+        if (claim.claimant_id !== req.user.id && req.user.role !== "admin") {
+            return res.status(403).json({ error: "Forbidden" });
+        }
+        return res.status(200).json(claim);
+    } catch (err) {
+        return res.status(500).json({ error: "Server error" });
+    }
+}
+
 export const withdrawClaim = async (req, res) => {
     try {
         const claim = await claimModel.findById(req.params.id);
