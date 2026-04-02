@@ -7,7 +7,6 @@
     "start": "node index.js",
     "dev": "nodemon index.js",
     "db:test:setup": "mysql -u root -p1234 -e 'CREATE DATABASE IF NOT EXISTS lost_found_test;' && sed 's/lost_found_db/lost_found_test/g' lost_and_found.sql | mysql -u root -p1234"
-
   },
   "type": "module",
   "keywords": [],
@@ -16,6 +15,7 @@
   "description": "",
   "dependencies": {
     "bcryptjs": "^3.0.3",
+    "cloudinary": "^2.9.0",
     "cors": "^2.8.6",
     "dotenv": "^17.3.1",
     "express": "^5.2.1",
@@ -23,7 +23,8 @@
     "multer": "^2.1.1",
     "mysql": "^2.18.1",
     "mysql2": "^3.17.4",
-    "nodemailer": "^8.0.3"
+    "nodemailer": "^8.0.3",
+    "nodemon": "^3.1.14"
   },
   "devDependencies": {
     "cross-env": "^10.1.0",

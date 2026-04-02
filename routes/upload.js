@@ -1,17 +1,37 @@
 import { Router } from "express";
 import multer from "multer";
 import path from "path";
+import fs from "fs";
+import { v2 as cloudinary } from "cloudinary";
 import { authenticateToken } from "../middleware/auth.js";
 
 const router = Router();
+const isProd = process.env.NODE_ENV === "production";
 
-const storage = multer.diskStorage({
-    destination: (_req, _file, cb) => cb(null, "uploads/"),
-    filename: (_req, file, cb) => {
-        const unique = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
-        cb(null, unique + path.extname(file.originalname));
-    },
-});
+// --- Cloudinary (production) ---
+if (isProd) {
+    cloudinary.config({
+        cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+        api_key: process.env.CLOUDINARY_API_KEY,
+        api_secret: process.env.CLOUDINARY_API_SECRET,
+    });
+}
+
+// --- Local disk (development) ---
+const uploadDir = "uploads/";
+if (!isProd) {
+    if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
+}
+
+const storage = isProd
+    ? multer.memoryStorage()
+    : multer.diskStorage({
+          destination: (_req, _file, cb) => cb(null, uploadDir),
+          filename: (_req, file, cb) => {
+              const unique = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
+              cb(null, unique + path.extname(file.originalname));
+          },
+      });
 
 const upload = multer({
     storage,
@@ -43,6 +63,21 @@ router.post("/", authenticateToken, (req, res) => {
             return res.status(400).json({ error: "No image file provided" });
         }
 
+        // Production: stream to Cloudinary
+        if (isProd) {
+            const stream = cloudinary.uploader.upload_stream(
+                { folder: "lost-and-found" },
+                (error, result) => {
+                    if (error) {
+                        return res.status(500).json({ error: "Upload to cloud failed" });
+                    }
+                    return res.status(201).json({ url: result.secure_url });
+                }
+            );
+            return stream.end(req.file.buffer);
+        }
+
+        // Development: return local file URL
         const url = `${req.protocol}://${req.get("host")}/uploads/${req.file.filename}`;
         return res.status(201).json({ url });
     });
