@@ -92,6 +92,36 @@ export const createClaim = async (req, res) => {
             status: "pending"
         });
 
+        // Notify item owner about the new claim
+        try {
+            const [rows] = await pool.query(
+                `SELECT i.title AS item_title, i.type AS item_type,
+                        r.id AS reporter_id, r.email AS reporter_email, r.first_name AS reporter_first_name,
+                        u.first_name AS claimant_first_name, u.last_name AS claimant_last_name
+                 FROM items i
+                 JOIN users r ON i.user_id = r.id
+                 JOIN users u ON u.id = ?
+                 WHERE i.id = ?`,
+                [claimant_id, item_id]
+            );
+            const info = rows[0];
+            if (info) {
+                const body = `
+                    <p>Hello ${info.reporter_first_name},</p>
+                    <p>A new claim has been submitted on your item, <b>${info.item_title}</b>, by ${info.claimant_first_name} ${info.claimant_last_name}.</p>
+                    <p>Please review the claim in your inbox.</p>`;
+                await sendEmail(info.reporter_email, "New Claim on Your Item", body);
+                await createEmailLog({
+                    user_id: info.reporter_id,
+                    email_type: "claim_submitted",
+                    reference_id: newClaim.id,
+                    sent_to: info.reporter_email
+                });
+            }
+        } catch (emailErr) {
+            console.error("Claim notification error:", emailErr.message);
+        }
+
         return res.status(201).json(newClaim);
     } catch (err) {
         return res.status(500).json({ error: "Server error" });
