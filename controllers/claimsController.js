@@ -1,10 +1,48 @@
 import * as claimModel from "../models/claimModel.js";
 import { updateItem } from "../models/itemModel.js";
+import { sendEmail } from "./emailController.js";
+import { createEmailLog } from "../models/emailLogModel.js";
+import pool from "../db.js";
+
+const sendResolutionNotification = async (claimId, status) => {
+    const [rows] = await pool.query(
+        `SELECT c.*, u.email
+         FROM claims c
+         JOIN users u ON c.claimant_id = u.id
+         WHERE c.id = ?`,
+        [claimId]
+    );
+
+    const claim = rows[0];
+
+    if (!claim) return;
+
+    if (status !== "approved" && status !== "rejected") return;
+
+    const subject =
+        status === "approved"
+            ? "Your claim has been approved"
+            : "Your claim has been rejected";
+
+    const body = `
+        <h3>Claim Status Update</h3>
+        <p>Your claim for item ID <b>${claim.item_id}</b> has been <b>${status}</b>.</p>
+    `;
+
+    await sendEmail(claim.email, subject, body);
+
+    await createEmailLog({
+        user_id: claim.claimant_id,
+        email_type: status === "approved" ? "claim_approved" : "claim_rejected",
+        reference_id: claim.id,
+        sent_to: claim.email
+    });
+};
 
 export const createClaim = async (req, res) => {
     try {
         const { item_id, verification_details } = req.body;
-        const claimant_id = req.user.id; // from JWT
+        const claimant_id = req.user.id;
 
         if (!item_id || !verification_details) {
             return res.status(400).json({ error: "Missing required fields" });
@@ -24,7 +62,6 @@ export const createClaim = async (req, res) => {
         });
 
         return res.status(201).json(newClaim);
-
     } catch (err) {
         return res.status(500).json({ error: "Server error" });
     }
@@ -39,7 +76,6 @@ export const updateClaimStatus = async (req, res) => {
             return res.status(400).json({ error: "Missing required fields" });
         }
 
-        // only allow valid statuses
         if (!["approved", "rejected"].includes(status)) {
             return res.status(400).json({ error: "Invalid status value" });
         }
@@ -59,15 +95,20 @@ export const updateClaimStatus = async (req, res) => {
             }
         }
 
-        const updatedClaim = await claimModel.updateStatus(id, status, claim.item_id);
+        const updatedClaim = await claimModel.updateStatus(id, status);
 
         if (status === "approved") {
-            await updateItem(claim.item_id, {status: "claimed"})
-            await claimModel.notifyApproval(req.user.id, updatedClaim);
+            await updateItem(claim.item_id, { status: "claimed" });
+        }
+
+        // TASK-4045: notifications on resolution
+        try {
+            await sendResolutionNotification(id, status);
+        } catch (emailErr) {
+            console.error("Notification error:", emailErr.message);
         }
 
         return res.status(200).json(updatedClaim);
-
     } catch (err) {
         return res.status(500).json({ error: "Server error" });
     }
@@ -77,13 +118,14 @@ export const getClaim = async (req, res) => {
     if (parseInt(req.query.claimant_id) !== req.user.id && req.user.role !== "admin") {
         return res.status(401).json({ error: "Invalid credentials" });
     }
+
     try {
         const claim = await claimModel.findByClaimantId(req.query.claimant_id);
         return res.status(200).json(claim);
     } catch (err) {
         return res.status(500).json({ error: "Server error" });
     }
-}
+};
 
 export const getClaimsInbox = async (req, res) => {
     try {
@@ -112,12 +154,40 @@ export const getClaimById = async (req, res) => {
 export const withdrawClaim = async (req, res) => {
     try {
         const claim = await claimModel.findById(req.params.id);
+
+        if (!claim) {
+            return res.status(404).json({ error: "Claim not found" });
+        }
+
         if (claim.claimant_id !== req.user.id && req.user.role !== "admin") {
             return res.status(401).json({ error: "Invalid credentials" });
         }
+
         await claimModel.withdrawClaim(claim);
         return res.status(200).json("Claim withdrawn successfully");
     } catch (err) {
         return res.status(500).json({ error: "Server error" });
     }
-}
+};
+
+export const assignClaim = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { assigned_to_user_id } = req.body;
+
+        if (!id || !assigned_to_user_id) {
+            return res.status(400).json({ error: "Missing required fields" });
+        }
+
+        const updated = await claimModel.assignClaim(id, assigned_to_user_id);
+
+        if (!updated) {
+            return res.status(404).json({ error: "Claim not found" });
+        }
+
+        return res.status(200).json(updated);
+
+    } catch (err) {
+        return res.status(500).json({ error: "Server error" });
+    }
+};

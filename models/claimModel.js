@@ -1,7 +1,7 @@
 import pool from "../db.js";
-import {findById as findUser} from "./userModel.js";
-import {findById as findItem} from "./itemModel.js";
-import {sendEmail} from "../controllers/emailController.js";
+import { findById as findUser } from "./userModel.js";
+import { findById as findItem } from "./itemModel.js";
+import { sendEmail } from "../controllers/emailController.js";
 
 export const create = async (claim) => {
     const [result] = await pool.query(
@@ -107,6 +107,22 @@ export const withdrawClaim = async (claim) => {
     return result;
 }
 
+export const assignClaim = async (id, assigned_to_user_id) => {
+    const [result] = await pool.query(
+        "UPDATE claims SET assigned_to_user_id = ? WHERE id = ?",
+        [assigned_to_user_id, id]
+    );
+
+    if (result.affectedRows === 0) return null;
+
+    const [rows] = await pool.query(
+        "SELECT * FROM claims WHERE id = ?",
+        [id]
+    );
+
+    return rows[0] || null;
+};
+
 
 export const notifyApproval = async (user_id, claim) => {
     const user = await findUser(user_id);
@@ -118,14 +134,14 @@ export const notifyApproval = async (user_id, claim) => {
         <p>It has been flagged in our system as having an approved claim</p>
         <p>You can contact the owner of the item at ${claimant.email}</p>
     `;
-    await sendEmail(user.email,"Found Item Claim Approved", user_message);
+    await sendEmail(user.email, "Found Item Claim Approved", user_message);
     const claimant_message = `
         <p>Hello ${claimant.first_name}</p>
         <p>We are reaching out to you regarding your lost item, ${item.title}.</p>
         <p>Your claim to this item has been flagged as approved</p>
         <p>You can contact the finder of the item at ${user.email}</p>
     `;
-    await sendEmail(claimant.email,"Lost Item Claim Approved", claimant_message);
+    await sendEmail(claimant.email, "Lost Item Claim Approved", claimant_message);
 }
 
 export const notifyWithdrawal = async (claim) => {
