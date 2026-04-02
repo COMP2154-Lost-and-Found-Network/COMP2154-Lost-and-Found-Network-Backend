@@ -1,7 +1,7 @@
 import pool from "../db.js";
 
 
-const SAFE_COLUMNS_ITEMS = "i.id, i.user_id, i.type, i.title, i.description, i.location_details, i.date, i.status, c.name AS category, l.display_name AS location";
+const SAFE_COLUMNS_ITEMS = "i.id, i.user_id, i.type, i.title, i.description, i.location_details, i.date, i.status, c.name AS category, l.display_name AS location, img.image_url";
 
 const mapItem = (row) => ({
     id: row.id,
