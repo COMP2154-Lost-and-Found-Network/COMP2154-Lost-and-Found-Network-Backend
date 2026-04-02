@@ -6,19 +6,9 @@ import { v2 as cloudinary } from "cloudinary";
 import { authenticateToken } from "../middleware/auth.js";
 
 const router = Router();
+const isProd = process.env.NODE_ENV === "production";
 
-// Use Cloudinary when credentials are present, otherwise save to disk
-const useCloud = !!(
-    process.env.CLOUDINARY_CLOUD_NAME &&
-    process.env.CLOUDINARY_API_KEY &&
-    process.env.CLOUDINARY_API_SECRET
-);
-console.log("Upload mode:", useCloud ? "cloudinary" : "disk",
-    "| CLOUD_NAME set:", !!process.env.CLOUDINARY_CLOUD_NAME,
-    "| API_KEY set:", !!process.env.CLOUDINARY_API_KEY,
-    "| API_SECRET set:", !!process.env.CLOUDINARY_API_SECRET);
-
-if (useCloud) {
+if (isProd) {
     cloudinary.config({
         cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
         api_key: process.env.CLOUDINARY_API_KEY,
@@ -28,11 +18,11 @@ if (useCloud) {
 
 // Local disk fallback (development)
 const uploadDir = "uploads/";
-if (!useCloud) {
+if (!isProd) {
     if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
 }
 
-const storage = useCloud
+const storage = isProd
     ? multer.memoryStorage()
     : multer.diskStorage({
           destination: (_req, _file, cb) => cb(null, uploadDir),
@@ -72,8 +62,8 @@ router.post("/", authenticateToken, (req, res) => {
             return res.status(400).json({ error: "No image file provided" });
         }
 
-        // Cloud: stream to Cloudinary
-        if (useCloud) {
+        // Production: stream to Cloudinary
+        if (isProd) {
             const stream = cloudinary.uploader.upload_stream(
                 { folder: "lost-and-found" },
                 (error, result) => {
@@ -86,7 +76,7 @@ router.post("/", authenticateToken, (req, res) => {
             return stream.end(req.file.buffer);
         }
 
-        // Local: return file URL
+        // Development: return local file URL
         const url = `${req.protocol}://${req.get("host")}/uploads/${req.file.filename}`;
         return res.status(201).json({ url });
     });
