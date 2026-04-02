@@ -90,6 +90,9 @@ export const updateItem = async (req, res) => {
 
 export const deleteItem = async (req, res) => {
     try {
+        const existing = await itemModel.getItem(req.params.id);
+        if (!existing) return res.status(404).json({ error: "Item not found" });
+        if (existing.user_id !== req.user.id) return res.status(403).json({ error: "Forbidden" });
         await itemModel.deleteItem(req.params.id);
         res.status(200).json({ message: "Deleted item" });
     }

@@ -56,7 +56,7 @@ export const getItem = async (id) => {
                    LEFT JOIN categories AS c ON i.category_id = c.id
                    LEFT JOIN locations AS l ON i.location_id = l.id
                    LEFT JOIN images AS img ON img.item_id = i.id
-                   WHERE i.id = ?`;
+                   WHERE i.id = ? AND i.is_deleted = false`;
     const [rows] = await pool.query(query, [id]);
     return rows[0];
 }
@@ -91,10 +91,10 @@ export const updateItem = async (id, item) => {
 }
 
 export const deleteItem = async (id) => {
-    const query = `DELETE
-                   FROM items
-                   WHERE id = ?`;
-    const result = await pool.query(query, [id]);
+    const [result] = await pool.query(
+        `UPDATE items SET is_deleted = true WHERE id = ? AND is_deleted = false`,
+        [id]
+    );
     if (result.affectedRows === 0) throw new Error("Item not found");
     return result;
 }
@@ -128,7 +128,8 @@ export const getItems = async (params = {}) => {
         values.push(`%${params.description}%`);
     }
 
-    const whereClause = conditions.length ? " WHERE " + conditions.join(" AND ") : "";
+    conditions.push("i.is_deleted = false");
+    const whereClause = " WHERE " + conditions.join(" AND ");
 
     const baseQuery = `FROM items AS i
                        LEFT JOIN categories AS c ON i.category_id = c.id
