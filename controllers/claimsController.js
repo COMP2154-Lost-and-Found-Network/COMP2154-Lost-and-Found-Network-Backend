@@ -173,9 +173,23 @@ export const getClaimById = async (req, res) => {
         if (!claim) {
             return res.status(404).json({ error: "Claim not found" });
         }
-        if (claim.claimant_id !== req.user.id && req.user.role !== "admin") {
+
+        // Allow: claimant, item owner, or admin
+        const isClaimant = claim.claimant_id === req.user.id;
+        const isAdmin = req.user.role === "admin";
+        let isItemOwner = false;
+        if (!isClaimant && !isAdmin) {
+            const [rows] = await pool.query(
+                "SELECT user_id FROM items WHERE id = ?",
+                [claim.item_id]
+            );
+            isItemOwner = rows[0]?.user_id === req.user.id;
+        }
+
+        if (!isClaimant && !isItemOwner && !isAdmin) {
             return res.status(403).json({ error: "Forbidden" });
         }
+
         return res.status(200).json(claim);
     } catch (err) {
         return res.status(500).json({ error: "Server error" });
