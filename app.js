@@ -29,5 +29,7 @@ app.use("/api/items", itemsRouter);
 app.use("/api/claims", claimsRoutes);
 app.use("/api/upload", uploadRouter);
 app.use("/api/admin", adminRouter);
+app.use("/api/locations", locationsRouter);
+app.use("/api/categories", categoriesRouter);
 
 export default app;

@@ -1,7 +1,7 @@
 import pool from "../db.js";
 
 
-const SAFE_COLUMNS_ITEMS = "i.id, i.user_id, i.type, i.title, i.description, i.location_details, i.date, i.status, c.name AS category, l.display_name AS location, img.image_url";
+const SAFE_COLUMNS_ITEMS = "i.id, i.user_id, i.category_id, i.location_id, i.type, i.title, i.description, i.location_details, i.date, i.status, c.name AS category, l.display_name AS location, img.image_url";
 
 const mapItem = (row) => ({
     id: row.id,
@@ -66,8 +66,10 @@ export const updateItem = async (id, item) => {
     const update = {
         title: item.title ?? existing.title,
         description: item.description ?? existing.description,
+        category_id: item.category_id ?? existing.category_id,
         location_id: item.location_id ?? existing.location_id,
-        location_details: item.location ?? existing.location_details,
+        type: item.type ?? existing.type,
+        location_details: item.location_details ?? existing.location_details,
         date: item.date ?? existing.date,
         status: item.status ?? existing.status,
     }
@@ -75,12 +77,14 @@ export const updateItem = async (id, item) => {
     const query = `UPDATE items
                    SET title            = ?,
                        description      = ?,
+                       category_id      = ?,
                        location_id      = ?,
+                       type             = ?,
                        location_details = ?,
                        date             = ?,
                        status           = ?
                    WHERE id = ?`;
-    await pool.query(query, [update.title, update.description, update.location_id, update.location_details, update.date, update.status, id]);
+    await pool.query(query, [update.title, update.description, update.category_id, update.location_id, update.type, update.location_details, update.date, update.status, id]);
 
     if (item.image_url) {
         await pool.query(`DELETE FROM images WHERE item_id = ?`, [id]);
