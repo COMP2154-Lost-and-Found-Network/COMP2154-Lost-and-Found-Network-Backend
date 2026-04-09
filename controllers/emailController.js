@@ -6,8 +6,10 @@ const transporter = nodemailer.createTransport({
     secure: true,
     auth: {
         type: "OAuth2",
-        user: "lost.and.found.network.gb@gmail.com",
-        accessToken: process.env.GOOGLE_ACCESS_TOKEN,
+        user: process.env.GMAIL_USER || "lost.and.found.network.gb@gmail.com",
+        clientId: process.env.GMAIL_CLIENT_ID,
+        clientSecret: process.env.GMAIL_CLIENT_SECRET,
+        refreshToken: process.env.GMAIL_REFRESH_TOKEN,
     },
 });
 
