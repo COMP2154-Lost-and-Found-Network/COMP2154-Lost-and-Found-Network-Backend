@@ -167,6 +167,62 @@ export const notifyWithdrawal = async (claim) => {
 }
 
 
+export const findPendingClaimsForItem = async (item_id) => {
+    const [rows] = await pool.query(
+        "SELECT * FROM claims WHERE item_id = ? AND status = 'pending'",
+        [item_id]
+    );
+    return rows;
+};
+
+export const escalateClaimsForItem = async (item_id) => {
+    const [result] = await pool.query(
+        "UPDATE claims SET status = 'escalated' WHERE item_id = ? AND status = 'pending'",
+        [item_id]
+    );
+    return result.affectedRows;
+};
+
+export const escalateClaim = async (id) => {
+    const [result] = await pool.query(
+        "UPDATE claims SET status = 'escalated' WHERE id = ? AND status = 'pending'",
+        [id]
+    );
+    if (result.affectedRows === 0) return null;
+    const [rows] = await pool.query("SELECT * FROM claims WHERE id = ?", [id]);
+    return rows[0] || null;
+};
+
+export const resolveClaim = async (id, approved_claim_id, reporter_feedback) => {
+    // Approve the winning claim
+    await pool.query(
+        "UPDATE claims SET status = 'approved', reporter_feedback = ?, reviewed_at = NOW(), contact_shared_at = NOW() WHERE id = ?",
+        [reporter_feedback, approved_claim_id]
+    );
+
+    // Reject all other escalated claims for the same item
+    await pool.query(
+        "UPDATE claims SET status = 'rejected', reporter_feedback = ?, reviewed_at = NOW() WHERE item_id = (SELECT item_id FROM (SELECT item_id FROM claims WHERE id = ?) AS t) AND id != ? AND status = 'escalated'",
+        [reporter_feedback, approved_claim_id, approved_claim_id]
+    );
+
+    const [rows] = await pool.query("SELECT * FROM claims WHERE id = ?", [approved_claim_id]);
+    return rows[0] || null;
+};
+
+export const findEscalatedClaims = async () => {
+    const [rows] = await pool.query(
+        `SELECT c.*, i.title AS item_title, i.type AS item_type,
+                u.first_name AS claimant_first_name, u.last_name AS claimant_last_name, u.email AS claimant_email
+         FROM claims AS c
+         JOIN items AS i ON c.item_id = i.id
+         JOIN users AS u ON c.claimant_id = u.id
+         WHERE c.status = 'escalated'
+         ORDER BY c.created_at DESC`
+    );
+    return rows;
+};
+
 export const getClaimStats = async () => {
     const [rows] = await pool.query(
         `SELECT COUNT(*) AS Total_Claims,

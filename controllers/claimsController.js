@@ -85,12 +85,20 @@ export const createClaim = async (req, res) => {
             return res.status(400).json({ error: "You already have a pending claim for this item" });
         }
 
+        // Check for existing pending claims — auto-escalate if disputed
+        const existingPending = await claimModel.findPendingClaimsForItem(item_id);
+
         const newClaim = await claimModel.create({
             item_id,
             claimant_id,
             verification_details,
-            status: "pending"
+            status: existingPending.length > 0 ? "escalated" : "pending"
         });
+
+        // Auto-escalate: if there were pending claims, escalate them too
+        if (existingPending.length > 0) {
+            await claimModel.escalateClaimsForItem(item_id);
+        }
 
         // Notify item owner about the new claim
         try {
@@ -240,6 +248,110 @@ export const withdrawClaim = async (req, res) => {
 
         await claimModel.withdrawClaim(claim);
         return res.status(200).json("Claim withdrawn successfully");
+    } catch (err) {
+        return res.status(500).json({ error: "Server error" });
+    }
+};
+
+export const escalateClaim = async (req, res) => {
+    try {
+        const claim = await claimModel.findById(req.params.id);
+        if (!claim) return res.status(404).json({ error: "Claim not found" });
+        if (claim.status !== "pending") {
+            return res.status(400).json({ error: "Only pending claims can be escalated" });
+        }
+
+        const escalated = await claimModel.escalateClaim(req.params.id);
+
+        // Notify claimant about escalation
+        try {
+            const [rows] = await pool.query(
+                `SELECT u.email, u.first_name, i.title AS item_title
+                 FROM claims c
+                 JOIN users u ON c.claimant_id = u.id
+                 JOIN items i ON c.item_id = i.id
+                 WHERE c.id = ?`,
+                [req.params.id]
+            );
+            const info = rows[0];
+            if (info) {
+                await sendEmail(info.email, "Your Claim Has Been Escalated", `
+                    <p>Hello ${info.first_name},</p>
+                    <p>Your claim for <b>${info.item_title}</b> has been escalated for admin review due to a dispute.</p>
+                    <p>An administrator will review and resolve this shortly.</p>`);
+                await createEmailLog({
+                    user_id: claim.claimant_id,
+                    email_type: "dispute_escalated",
+                    reference_id: claim.id,
+                    sent_to: info.email
+                });
+            }
+        } catch (emailErr) {
+            console.error("Escalation notification error:", emailErr.message);
+        }
+
+        return res.status(200).json(escalated);
+    } catch (err) {
+        return res.status(500).json({ error: "Server error" });
+    }
+};
+
+export const getEscalatedClaims = async (req, res) => {
+    try {
+        const claims = await claimModel.findEscalatedClaims();
+        return res.status(200).json(claims);
+    } catch (err) {
+        return res.status(500).json({ error: "Server error" });
+    }
+};
+
+export const resolveDispute = async (req, res) => {
+    try {
+        const { approved_claim_id, reporter_feedback } = req.body;
+
+        if (!approved_claim_id) {
+            return res.status(400).json({ error: "approved_claim_id is required" });
+        }
+
+        const claim = await claimModel.findById(approved_claim_id);
+        if (!claim) return res.status(404).json({ error: "Claim not found" });
+        if (claim.status !== "escalated") {
+            return res.status(400).json({ error: "Only escalated claims can be resolved" });
+        }
+
+        const resolved = await claimModel.resolveClaim(claim.item_id, approved_claim_id, reporter_feedback || null);
+        await updateItem(claim.item_id, { status: "claimed" });
+
+        // Notify all parties
+        try {
+            await sendResolutionNotification(approved_claim_id, "approved");
+
+            // Notify rejected claimants
+            const [rejected] = await pool.query(
+                `SELECT c.id, c.claimant_id, u.email, u.first_name, i.title AS item_title
+                 FROM claims c
+                 JOIN users u ON c.claimant_id = u.id
+                 JOIN items i ON c.item_id = i.id
+                 WHERE c.item_id = ? AND c.id != ? AND c.status = 'rejected'`,
+                [claim.item_id, approved_claim_id]
+            );
+            for (const r of rejected) {
+                await sendEmail(r.email, "Dispute Resolved — Claim Rejected", `
+                    <p>Hello ${r.first_name},</p>
+                    <p>The dispute for <b>${r.item_title}</b> has been resolved by an administrator.</p>
+                    <p>Unfortunately, your claim was not approved.</p>`);
+                await createEmailLog({
+                    user_id: r.claimant_id,
+                    email_type: "claim_rejected",
+                    reference_id: r.id,
+                    sent_to: r.email
+                });
+            }
+        } catch (emailErr) {
+            console.error("Resolution notification error:", emailErr.message);
+        }
+
+        return res.status(200).json(resolved);
     } catch (err) {
         return res.status(500).json({ error: "Server error" });
     }
