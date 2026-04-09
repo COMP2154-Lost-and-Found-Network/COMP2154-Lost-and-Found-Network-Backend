@@ -20,8 +20,6 @@ export const sendEmail = async (address, subject, body) => {
         subject: subject,
         html: body,
     };
-    return await transporter.sendMail(mailOptions, (error, info) => {
-        if (error) return console.log('Error:', error);
-        else return 'Message sent: %s' + info.messageId;
-    });
+    const info = await transporter.sendMail(mailOptions);
+    return info;
 }
