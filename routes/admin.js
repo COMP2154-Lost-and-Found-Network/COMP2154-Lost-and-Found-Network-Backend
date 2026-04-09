@@ -8,6 +8,6 @@ const router = Router();
 router.put("/item/:id", authenticateToken, adminAuth, updateItem);
 router.delete("/item/:id", authenticateToken, adminAuth, deleteItem);
 router.get("/items", authenticateToken, adminAuth, getItems);
-router.get("/stats", getStats);
+router.get("/stats", authenticateToken, adminAuth, getStats);
 
 export default router;
