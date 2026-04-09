@@ -71,6 +71,12 @@ DB_PORT=3306
 JWT_SECRET=somethingHere
 
 PORT=3000
+
+# Gmail OAuth2 (for email notifications)
+GMAIL_USER=lost.and.found.network.gb@gmail.com
+GMAIL_CLIENT_ID=your_google_client_id
+GMAIL_CLIENT_SECRET=your_google_client_secret
+GMAIL_REFRESH_TOKEN=your_google_refresh_token
 ```
 
 > **Mac users:** MySQL connects via Unix socket. Set `DB_SOCKET=/tmp/mysql.sock`.
@@ -149,15 +155,49 @@ Back-end server needs to be run separately from front-end server.
 
 ### Claims
 
-| Method   | Endpoint                  | Auth     | Description                              |
-|----------|---------------------------|----------|------------------------------------------|
-| `POST`   | `/api/claims`             | Token    | Submit a claim                           |
-| `GET`    | `/api/claims?claimant_id=X` | Token  | Get claims by claimant                   |
-| `GET`    | `/api/claims/inbox`       | Token    | Get claims on the logged-in user's items |
-| `GET`    | `/api/claims/:id`         | Token    | Get claim details (claimant/admin only)  |
-| `PUT`    | `/api/claims/:id`         | Token    | Approve or reject a claim                |
-| `PUT`    | `/api/claims/:id/assign`  | Admin    | Assign claim to a user                   |
-| `DELETE` | `/api/claims/:id/withdraw`| Token    | Withdraw a pending claim (claimant only) |
+| Method   | Endpoint                    | Auth     | Description                                       |
+|----------|-----------------------------|----------|---------------------------------------------------|
+| `POST`   | `/api/claims`               | Token    | Submit a claim (auto-escalates if item is disputed)|
+| `GET`    | `/api/claims?claimant_id=X` | Token    | Get claims by claimant                             |
+| `GET`    | `/api/claims/inbox`         | Token    | Get claims on the logged-in user's items           |
+| `GET`    | `/api/claims/escalated`     | Admin    | List all escalated/disputed claims                 |
+| `GET`    | `/api/claims/:id`           | Token    | Get claim details (includes contact emails on approval) |
+| `PUT`    | `/api/claims/:id`           | Token    | Approve or reject a claim                          |
+| `PUT`    | `/api/claims/:id/escalate`  | Token    | Manually escalate a pending claim to disputed      |
+| `PUT`    | `/api/claims/:id/assign`    | Admin    | Assign claim to a user                             |
+| `POST`   | `/api/claims/resolve`       | Admin    | Resolve a dispute (approve one, reject the rest)   |
+| `DELETE`  | `/api/claims/:id/withdraw` | Token    | Withdraw a pending claim (claimant only)           |
+
+**Dispute flow:** When multiple users claim the same item, all claims auto-escalate to `"escalated"`. Admins review via `GET /api/claims/escalated` and resolve via `POST /api/claims/resolve` with `{ approved_claim_id, reporter_feedback }`.
+
+### Admin
+
+| Method   | Endpoint            | Auth     | Description                    |
+|----------|---------------------|----------|--------------------------------|
+| `GET`    | `/api/admin/stats`  | Admin    | Item and claim statistics      |
+| `GET`    | `/api/admin/items`  | Admin    | List all items (admin view)    |
+| `PUT`    | `/api/admin/item/:id` | Admin  | Update any item                |
+| `DELETE` | `/api/admin/item/:id` | Admin  | Soft delete any item           |
+
+### Categories
+
+| Method   | Endpoint               | Auth     | Description          |
+|----------|------------------------|----------|----------------------|
+| `GET`    | `/api/categories`      | Token    | List all categories  |
+| `GET`    | `/api/categories/:id`  | Token    | Get category by ID   |
+| `POST`   | `/api/categories`      | Admin    | Create category      |
+| `PUT`    | `/api/categories/:id`  | Admin    | Update category      |
+| `DELETE` | `/api/categories/:id`  | Admin    | Soft delete category |
+
+### Locations
+
+| Method   | Endpoint              | Auth     | Description         |
+|----------|-----------------------|----------|---------------------|
+| `GET`    | `/api/locations`      | Token    | List all locations  |
+| `GET`    | `/api/locations/:id`  | Token    | Get location by ID  |
+| `POST`   | `/api/locations`      | Admin    | Create location     |
+| `PUT`    | `/api/locations/:id`  | Admin    | Update location     |
+| `DELETE` | `/api/locations/:id`  | Admin    | Soft delete location|
 
 ### Upload
 
@@ -190,17 +230,25 @@ password: 1234
 │   ├── auth.js         # Auth routes (login, logout, register)
 │   ├── users.js        # User routes
 │   ├── items.js        # Item CRUD routes
-│   ├── claims.js       # Claim workflow routes
+│   ├── claims.js       # Claim & dispute workflow routes
+│   ├── admin.js        # Admin routes (stats, item management)
+│   ├── categories.js   # Category CRUD routes
+│   ├── locations.js    # Location CRUD routes
 │   └── upload.js       # Image upload route
 ├── controllers/
 │   ├── userController.js
 │   ├── itemsController.js
 │   ├── claimsController.js
+│   ├── adminController.js
+│   ├── categoryController.js
+│   ├── locationController.js
 │   └── emailController.js
 ├── models/
 │   ├── userModel.js
 │   ├── itemModel.js
 │   ├── claimModel.js
+│   ├── categoryModel.js
+│   ├── locationModel.js
 │   └── emailLogModel.js
 ├── lost_and_found.sql  # Full database schema + seed data
 └── .env.example        # Environment variable template
@@ -260,4 +308,4 @@ tests/
 ### Notes
 
 - **Email errors during claims tests** — expected. The test environment has no Gmail OAuth2 credentials. Email failures are logged but do not affect test results. (`--silent` can be added to reduce noise)
-- **Admin stats tests** — not yet included. Admin stats endpoints are not yet implemented.
+- **Admin and dispute tests** — not yet included in the automated test suite. Endpoints are functional and manually verified.
