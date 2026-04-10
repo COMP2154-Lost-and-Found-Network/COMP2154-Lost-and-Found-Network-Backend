@@ -59,6 +59,7 @@ export const findById = async (id) => {
 export const findDetailById = async (id) => {
     const [rows] = await pool.query(
         `SELECT c.*,
+                u.first_name AS claimant_first_name, u.last_name AS claimant_last_name,
                 CASE WHEN c.status = 'approved' THEN u.email ELSE NULL END AS claimant_email,
                 CASE WHEN c.status = 'approved' THEN r.email ELSE NULL END AS reporter_email
          FROM claims AS c
@@ -77,6 +78,18 @@ export const findApprovedClaimForItem = async (item_id) => {
         [item_id]
     );
     return rows[0] || null;
+};
+
+export const findByItemId = async (item_id) => {
+    const [rows] = await pool.query(
+        `SELECT c.*, u.first_name AS claimant_first_name, u.last_name AS claimant_last_name
+         FROM claims AS c
+         JOIN users AS u ON c.claimant_id = u.id
+         WHERE c.item_id = ?
+         ORDER BY c.created_at DESC`,
+        [item_id]
+    );
+    return rows;
 };
 
 export const findByClaimantId = async (claimant_id) => {
@@ -106,7 +119,11 @@ export const withdrawClaim = async (claim) => {
                    WHERE id = ?`;
     const result = await pool.query(query, [claim.id]);
     if (result.affectedRows === 0) throw new Error("Claim not found");
-    await notifyWithdrawal(claim)
+    try {
+        await notifyWithdrawal(claim);
+    } catch (err) {
+        console.error("Withdrawal notification error:", err.message);
+    }
     return result;
 }
 
@@ -183,10 +200,10 @@ export const escalateClaimsForItem = async (item_id) => {
     return result.affectedRows;
 };
 
-export const escalateClaim = async (id) => {
+export const escalateClaim = async (id, reason) => {
     const [result] = await pool.query(
-        "UPDATE claims SET status = 'escalated' WHERE id = ? AND status = 'pending'",
-        [id]
+        "UPDATE claims SET status = 'escalated', escalation_reason = ? WHERE id = ? AND status IN ('pending', 'rejected', 'approved')",
+        [reason || null, id]
     );
     if (result.affectedRows === 0) return null;
     const [rows] = await pool.query("SELECT * FROM claims WHERE id = ?", [id]);
@@ -213,10 +230,12 @@ export const resolveClaim = async (id, approved_claim_id, reporter_feedback) => 
 export const findEscalatedClaims = async () => {
     const [rows] = await pool.query(
         `SELECT c.*, i.title AS item_title, i.type AS item_type,
-                u.first_name AS claimant_first_name, u.last_name AS claimant_last_name, u.email AS claimant_email
+                u.first_name AS claimant_first_name, u.last_name AS claimant_last_name, u.email AS claimant_email,
+                r.first_name AS reporter_first_name, r.last_name AS reporter_last_name
          FROM claims AS c
          JOIN items AS i ON c.item_id = i.id
          JOIN users AS u ON c.claimant_id = u.id
+         JOIN users AS r ON i.user_id = r.id
          WHERE c.status = 'escalated'
          ORDER BY c.created_at DESC`
     );

@@ -8,10 +8,14 @@ export async function cleanDb() {
     const conn = await pool.getConnection();
     try {
         await conn.query("SET FOREIGN_KEY_CHECKS = 0");
+        await conn.query("DELETE FROM email_logs WHERE user_id IN (SELECT id FROM users WHERE email LIKE '%@test.com')");
         await conn.query("DELETE FROM claims WHERE claimant_id IN (SELECT id FROM users WHERE email LIKE '%@test.com')");
+        await conn.query("DELETE FROM claims WHERE item_id IN (SELECT id FROM items WHERE user_id IN (SELECT id FROM users WHERE email LIKE '%@test.com'))");
         await conn.query("DELETE FROM images WHERE item_id IN (SELECT id FROM items WHERE user_id IN (SELECT id FROM users WHERE email LIKE '%@test.com'))");
         await conn.query("DELETE FROM items WHERE user_id IN (SELECT id FROM users WHERE email LIKE '%@test.com')");
         await conn.query("DELETE FROM users WHERE email LIKE '%@test.com'");
+        await conn.query("DELETE FROM categories WHERE name LIKE 'Test %' OR name LIKE 'Updated Test %'");
+        await conn.query("DELETE FROM locations WHERE building_name LIKE 'Test %'");
         await conn.query("SET FOREIGN_KEY_CHECKS = 1");
     } finally {
         conn.release();

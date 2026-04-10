@@ -184,12 +184,27 @@ export const updateClaimStatus = async (req, res) => {
 };
 
 export const getClaim = async (req, res) => {
-    if (parseInt(req.query.claimant_id) !== req.user.id && req.user.role !== "admin") {
+    const { claimant_id, item_id } = req.query;
+
+    // item_id filter is admin-only
+    if (item_id) {
+        if (req.user.role !== "admin") {
+            return res.status(403).json({ error: "Forbidden" });
+        }
+        try {
+            const claims = await claimModel.findByItemId(item_id);
+            return res.status(200).json(claims);
+        } catch (err) {
+            return res.status(500).json({ error: "Server error" });
+        }
+    }
+
+    if (parseInt(claimant_id) !== req.user.id && req.user.role !== "admin") {
         return res.status(401).json({ error: "Invalid credentials" });
     }
 
     try {
-        const claim = await claimModel.findByClaimantId(req.query.claimant_id);
+        const claim = await claimModel.findByClaimantId(claimant_id);
         return res.status(200).json(claim);
     } catch (err) {
         return res.status(500).json({ error: "Server error" });
@@ -257,11 +272,12 @@ export const escalateClaim = async (req, res) => {
     try {
         const claim = await claimModel.findById(req.params.id);
         if (!claim) return res.status(404).json({ error: "Claim not found" });
-        if (claim.status !== "pending") {
-            return res.status(400).json({ error: "Only pending claims can be escalated" });
+        if (!["pending", "rejected", "approved"].includes(claim.status)) {
+            return res.status(400).json({ error: "Only pending, rejected, or approved claims can be escalated" });
         }
 
-        const escalated = await claimModel.escalateClaim(req.params.id);
+        const { reason } = req.body || {};
+        const escalated = await claimModel.escalateClaim(req.params.id, reason);
 
         // Notify claimant about escalation
         try {

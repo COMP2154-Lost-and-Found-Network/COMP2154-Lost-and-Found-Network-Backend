@@ -22,8 +22,10 @@ const BASE_ITEM = (userId) => ({
 beforeAll(async () => {
     await cleanDb();
 
-    await request(app).post("/api/auth/").send(REPORTER);
+    const reg1 = await request(app).post("/api/auth/").send(REPORTER);
+    if (reg1.status !== 201) throw new Error(`Reporter registration failed: ${reg1.status} ${JSON.stringify(reg1.body)}`);
     const r1 = await request(app).post("/api/auth/login").send({ email: REPORTER.email, password: REPORTER.password });
+    if (!r1.body.user) throw new Error(`Reporter login failed: ${r1.status} ${JSON.stringify(r1.body)}`);
     reporterToken = r1.body.token;
     reporterId = r1.body.user.id;
 
@@ -156,20 +158,41 @@ describe("Dispute Resolution Flow", () => {
     });
 
     // TC-DISPUTE-009
-    test("TC-DISPUTE-009: cannot escalate a non-pending claim", async () => {
-        // claimAId is already approved from TC-DISPUTE-005
+    test("TC-DISPUTE-009: cannot escalate an already-escalated claim", async () => {
+        // Create a fresh item, claim it, and escalate it
+        const freshItem = await request(app)
+            .post("/api/items")
+            .set("Authorization", `Bearer ${reporterToken}`)
+            .send({ ...BASE_ITEM(reporterId), title: "Escalation Edge Case" });
+        const freshClaim = await request(app)
+            .post("/api/claims")
+            .set("Authorization", `Bearer ${claimantAToken}`)
+            .send({ item_id: freshItem.body.id, verification_details: "Edge case test" });
+        // Escalate it manually
+        await request(app)
+            .put(`/api/claims/${freshClaim.body.id}/escalate`)
+            .set("Authorization", `Bearer ${claimantAToken}`);
+        // Try escalating again — already escalated
         const res = await request(app)
-            .put(`/api/claims/${claimAId}/escalate`)
+            .put(`/api/claims/${freshClaim.body.id}/escalate`)
             .set("Authorization", `Bearer ${claimantAToken}`);
         expect(res.status).toBe(400);
     });
 
     // TC-DISPUTE-010
-    test("TC-DISPUTE-010: cannot resolve a non-escalated claim", async () => {
+    test("TC-DISPUTE-010: cannot resolve a pending claim", async () => {
+        const freshItem = await request(app)
+            .post("/api/items")
+            .set("Authorization", `Bearer ${reporterToken}`)
+            .send({ ...BASE_ITEM(reporterId), title: "Resolve Edge Case" });
+        const freshClaim = await request(app)
+            .post("/api/claims")
+            .set("Authorization", `Bearer ${claimantAToken}`)
+            .send({ item_id: freshItem.body.id, verification_details: "Resolve test" });
         const res = await request(app)
             .post("/api/claims/resolve")
             .set("Authorization", `Bearer ${adminToken}`)
-            .send({ approved_claim_id: claimAId });
+            .send({ approved_claim_id: freshClaim.body.id });
         expect(res.status).toBe(400);
     });
 });

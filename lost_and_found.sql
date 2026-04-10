@@ -139,6 +139,7 @@ CREATE TABLE claims (
                              'escalated'
                          )               NOT NULL DEFAULT 'pending',
     reporter_feedback    TEXT            NULL,
+    escalation_reason    TEXT            NULL,
     contact_shared_at    TIMESTAMP       NULL DEFAULT NULL,
     created_at           TIMESTAMP       NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at           TIMESTAMP       NOT NULL DEFAULT CURRENT_TIMESTAMP
